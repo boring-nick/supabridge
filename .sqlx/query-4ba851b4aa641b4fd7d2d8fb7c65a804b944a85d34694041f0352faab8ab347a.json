@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT * FROM user_link",
+  "describe": {
+    "columns": [
+      {
+        "name": "source_platform",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "source_user_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "target_platform",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "target_user_id",
+        "ordinal": 3,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4ba851b4aa641b4fd7d2d8fb7c65a804b944a85d34694041f0352faab8ab347a"
+}

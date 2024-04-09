@@ -8,7 +8,7 @@ use futures::StreamExt;
 use reqwest::StatusCode;
 use serde::Deserialize;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -18,6 +18,7 @@ use twitch_api::{
     eventsub::{self, channel::ChannelChatMessageV1Payload, EventSubscription, Status},
     helix::{self, ClientRequestError, HelixRequestPostError},
     twitch_oauth2::AppAccessToken,
+    types::MsgId,
 };
 use twitch_oauth2::{CsrfToken, Scope, UserTokenBuilder};
 
@@ -40,6 +41,7 @@ pub struct Twitch {
     config: Config,
     csrf_tokens: Arc<Mutex<HashMap<CsrfToken, UserTokenBuilder>>>,
     channel_ids: Vec<String>,
+    recently_sent_messages: Arc<Mutex<HashSet<MsgId>>>,
 }
 
 impl ChatPlatform for Twitch {
@@ -75,6 +77,7 @@ impl ChatPlatform for Twitch {
             base_url: global_config.general.base_url.clone(),
             csrf_tokens: Arc::default(),
             channel_ids,
+            recently_sent_messages: Arc::default(),
         })
     }
 
@@ -110,16 +113,25 @@ impl Twitch {
         msg: ChannelChatMessageV1Payload,
         message_tx: mpsc::Sender<IncomingMessage>,
     ) -> anyhow::Result<()> {
-        if msg.chatter_user_id != self.bot_user.id {
-            message_tx
-                .send(IncomingMessage {
-                    channel_id: Some(msg.broadcaster_user_id.to_string()),
-                    user_id: Some(msg.chatter_user_id.to_string()),
-                    user_name: Some(msg.chatter_user_name.to_string()),
-                    contents: msg.message.text,
-                })
-                .await?;
+        // The message was sent by the bridge itself
+        if self
+            .recently_sent_messages
+            .lock()
+            .unwrap()
+            .remove(&msg.message_id)
+        {
+            return Ok(());
         }
+
+        message_tx
+            .send(IncomingMessage {
+                channel_id: Some(msg.broadcaster_user_id.to_string()),
+                user_id: Some(msg.chatter_user_id.to_string()),
+                user_name: Some(msg.chatter_user_name.to_string()),
+                contents: msg.message.text,
+            })
+            .await?;
+
         Ok(())
     }
 
@@ -128,18 +140,29 @@ impl Twitch {
             .target_channel_id
             .context("Cannot send without a channel")?;
 
+        let sender_id = outgoing_msg
+            .sender_user_id
+            .as_deref()
+            .unwrap_or(self.bot_user.id.as_str());
+
         let req = helix::chat::SendChatMessageRequest::new();
-        let body = helix::chat::SendChatMessageBody::new(
-            channel_id,
-            &self.bot_user.id,
-            outgoing_msg.content,
-        );
-        if let Err(err) = self
+        let body =
+            helix::chat::SendChatMessageBody::new(channel_id, sender_id, outgoing_msg.content);
+        match self
             .helix
             .req_post(req.clone(), body.clone(), &self.app_token)
             .await
         {
-            match err {
+            Ok(response) => {
+                if !response.data.is_sent {
+                    error!("Message did not get sent: {:?}", response.data.drop_reason);
+                }
+                if let Some(msg_id) = response.data.message_id {
+                    let mut recently_sent = self.recently_sent_messages.lock().unwrap();
+                    recently_sent.insert(msg_id);
+                }
+            }
+            Err(err) => match err {
                 ClientRequestError::HelixRequestPostError(HelixRequestPostError::Error {
                     status: StatusCode::TOO_MANY_REQUESTS,
                     ..
@@ -148,7 +171,7 @@ impl Twitch {
                     self.helix.req_post(req, body, &self.app_token).await?;
                 }
                 other => return Err(other.into()),
-            }
+            },
         }
         Ok(())
     }

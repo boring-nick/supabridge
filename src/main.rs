@@ -7,15 +7,17 @@ use anyhow::{anyhow, Context};
 use axum::routing::get;
 use builder::PlatformsBuilder;
 use config::Config;
-use futures::future::select_all;
+use futures::{future::select_all, TryStreamExt};
 use router::MessageRouter;
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Pool, Sqlite,
 };
-use std::{convert::Infallible, fmt, fs, str::FromStr};
+use std::{collections::HashMap, convert::Infallible, fmt, fs, str::FromStr};
 use tower_http::{limit::RequestBodyLimitLayer, trace::TraceLayer};
 use tracing::{debug, error, info};
+
+use crate::config::FilterMode;
 
 const API_BODY_SIZE_LIMIT: usize = 64 * 1024;
 
@@ -63,6 +65,9 @@ async fn main() -> anyhow::Result<()> {
     let platform_aliases = config.message.platform_aliases.clone();
     let channel_links = message_router.channel_links.clone();
 
+    let user_links = load_user_links(&db_pool).await?;
+    info!("Loaded {} user links", user_links.len());
+
     let send_handle = tokio::spawn(async move {
         while let Some((source_platform, incoming_msg)) = incoming_message_rx.recv().await {
             let identifier = ChannelIdentifier {
@@ -95,8 +100,12 @@ async fn main() -> anyhow::Result<()> {
                         None => format!("[{platform}] {}", incoming_msg.contents),
                     };
 
+                    let filter_haystack = match target_channel.filter_mode {
+                        FilterMode::FinalMessage => &content,
+                        FilterMode::SourceMessage => &incoming_msg.contents,
+                    };
                     for exclude_filter in &target_channel.exclude_filters {
-                        if exclude_filter.is_match(&content) {
+                        if exclude_filter.is_match(filter_haystack) {
                             debug!(
                                 "Message '{content}' to {} filtered out by {exclude_filter}",
                                 target_channel.channel
@@ -105,9 +114,28 @@ async fn main() -> anyhow::Result<()> {
                         }
                     }
 
+                    let sender_user_id = incoming_msg
+                        .user_id
+                        .as_ref()
+                        .and_then(|source_user_id| {
+                            user_links.get(&(
+                                UserIdentifier {
+                                    platform: source_platform.to_owned(),
+                                    user_id: source_user_id.to_owned(),
+                                },
+                                target_channel.channel.platform.clone(),
+                            ))
+                        })
+                        .cloned();
+                    let content = match &sender_user_id {
+                        Some(_) => incoming_msg.contents.clone(),
+                        None => content,
+                    };
+
                     let outgoing_message = OutgoingMessage {
                         content,
                         target_channel_id: target_channel.channel.value.clone(),
+                        sender_user_id,
                     };
 
                     match message_senders.get(target_channel.channel.platform.as_str()) {
@@ -173,6 +201,12 @@ impl FromStr for ChannelIdentifier {
     }
 }
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+struct UserIdentifier {
+    platform: String,
+    user_id: String,
+}
+
 impl fmt::Display for ChannelIdentifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.platform)?;
@@ -195,4 +229,21 @@ struct IncomingMessage {
 struct OutgoingMessage {
     target_channel_id: Option<String>,
     content: String,
+    sender_user_id: Option<String>,
+}
+
+// (user, target platform) -> target user id
+async fn load_user_links(db: &DbPool) -> anyhow::Result<HashMap<(UserIdentifier, String), String>> {
+    sqlx::query!("SELECT * FROM user_link")
+        .fetch(db)
+        .map_ok(|record| {
+            let source_user = UserIdentifier {
+                platform: record.source_platform,
+                user_id: record.source_user_id,
+            };
+            ((source_user, record.target_platform), record.target_user_id)
+        })
+        .try_collect()
+        .await
+        .context("DB error")
 }

@@ -2,7 +2,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use toml::Table;
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Clone)]
 pub struct Config {
     pub general: General,
     #[serde(default)]
@@ -12,7 +12,7 @@ pub struct Config {
     pub message: Message,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Clone)]
 pub struct General {
     #[serde(default = "default_log_level")]
     pub log_level: String,
@@ -21,13 +21,22 @@ pub struct General {
     pub base_url: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Clone)]
 pub struct Bridge {
     pub channels: [String; 2],
     pub bidirectional: Option<bool>,
     pub insert_zws_into_names: Option<bool>,
     #[serde(default)]
     pub exclude_filters: Vec<String>,
+    #[serde(default)]
+    pub filter_mode: FilterMode,
+}
+
+#[derive(Clone, Copy, Default, Deserialize, Debug)]
+pub enum FilterMode {
+    #[default]
+    FinalMessage,
+    SourceMessage,
 }
 
 fn default_log_level() -> String {

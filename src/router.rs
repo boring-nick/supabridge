@@ -1,12 +1,14 @@
 use anyhow::Context;
 use regex::Regex;
 
-use crate::{config, ChannelIdentifier};
+use crate::{
+    config::{self, FilterMode},
+    ChannelIdentifier,
+};
 use std::{collections::HashMap, str::FromStr};
 
 pub struct MessageRouter {
     pub channel_links: HashMap<ChannelIdentifier, Vec<MirroredChannel>>,
-    // message_senders: HashMap<&'static str, mpsc::Sender<OutgoingMessage>>,
 }
 
 impl MessageRouter {
@@ -34,6 +36,7 @@ impl MessageRouter {
                     channel: target_channel.clone(),
                     insert_zws,
                     exclude_filters: exclude_filters.clone(),
+                    filter_mode: bridge_config.filter_mode,
                 });
 
             if bidirectional {
@@ -44,6 +47,7 @@ impl MessageRouter {
                         channel: source_channel,
                         insert_zws,
                         exclude_filters,
+                        filter_mode: bridge_config.filter_mode,
                     });
             }
         }
@@ -57,4 +61,5 @@ pub struct MirroredChannel {
     pub channel: ChannelIdentifier,
     pub insert_zws: bool,
     pub exclude_filters: Vec<Regex>,
+    pub filter_mode: FilterMode,
 }

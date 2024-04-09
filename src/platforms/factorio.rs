@@ -138,7 +138,7 @@ fn process_log(new_contents: &str, incoming_tx: &mut mpsc::Sender<IncomingMessag
                             if name != "<server>" {
                                 let msg = IncomingMessage {
                                     channel_id: None,
-                                    user_id: None,
+                                    user_id: Some(name.to_owned()),
                                     user_name: Some(name.to_owned()),
                                     contents: text.to_owned(),
                                 };
