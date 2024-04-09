@@ -123,12 +123,16 @@ impl Twitch {
             return Ok(());
         }
 
+        let color = msg.color.as_str().trim_start_matches('#').to_owned();
+        let user_color = if color.is_empty() { None } else { Some(color) };
+
         message_tx
             .send(IncomingMessage {
                 channel_id: Some(msg.broadcaster_user_id.to_string()),
                 user_id: Some(msg.chatter_user_id.to_string()),
                 user_name: Some(msg.chatter_user_name.to_string()),
                 contents: msg.message.text,
+                user_color,
             })
             .await?;
 

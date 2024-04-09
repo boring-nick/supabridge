@@ -53,7 +53,19 @@ impl ChatPlatform for Factorio {
         loop {
             select! {
                 Some(msg) = outgoing_message_rx.recv() => {
-                    if let Err(err) = rcon_client.cmd(&msg.content).await {
+                    let user_text = match msg.source_msg.user_name {
+                        Some(name) => match msg.source_msg.user_color {
+                            Some(color) => {
+                                format!("[color=#{color}]{name}:[/color] {}", msg.source_msg.contents)
+                            }
+                            None => format!("{name}: {}", msg.source_msg.contents)
+                        }
+                        None => msg.content.to_string()
+                    };
+
+                    let cmd = format!("/puppet [{}] {user_text}", msg.source_platform_name);
+
+                    if let Err(err) = rcon_client.cmd(&cmd).await {
                         error!("Could not send message to server: {err}");
                         info!("Attempting to reconect");
 
@@ -61,7 +73,7 @@ impl ChatPlatform for Factorio {
                             Ok(new_client) => {
                                 rcon_client = new_client;
 
-                                if let Err(err) = rcon_client.cmd(&msg.content).await {
+                                if let Err(err) = rcon_client.cmd(&cmd).await {
                                     error!("Could not send message even after a reconnect: {err}");
                                 }
                             }
@@ -141,6 +153,7 @@ fn process_log(new_contents: &str, incoming_tx: &mut mpsc::Sender<IncomingMessag
                                     user_id: Some(name.to_owned()),
                                     user_name: Some(name.to_owned()),
                                     contents: text.to_owned(),
+                                    user_color: None,
                                 };
                                 incoming_tx.blocking_send(msg).unwrap();
                             }
@@ -154,6 +167,7 @@ fn process_log(new_contents: &str, incoming_tx: &mut mpsc::Sender<IncomingMessag
                         channel_id: None,
                         user_name: None,
                         contents: contents.to_owned(),
+                        user_color: None,
                     };
                     incoming_tx.blocking_send(msg).unwrap();
                 }

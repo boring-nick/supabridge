@@ -133,9 +133,11 @@ async fn main() -> anyhow::Result<()> {
                     };
 
                     let outgoing_message = OutgoingMessage {
+                        source_platform_name: platform.to_owned(),
                         content,
                         target_channel_id: target_channel.channel.value.clone(),
                         sender_user_id,
+                        source_msg: incoming_msg.clone(),
                     };
 
                     match message_senders.get(target_channel.channel.platform.as_str()) {
@@ -217,19 +219,23 @@ impl fmt::Display for ChannelIdentifier {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct IncomingMessage {
     channel_id: Option<String>,
     user_id: Option<String>,
     user_name: Option<String>,
     contents: String,
+    // hex
+    user_color: Option<String>,
 }
 
 #[derive(Debug)]
 struct OutgoingMessage {
+    source_msg: IncomingMessage,
+    source_platform_name: String,
     target_channel_id: Option<String>,
-    content: String,
     sender_user_id: Option<String>,
+    content: String,
 }
 
 // (user, target platform) -> target user id
