@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT INTO twitch_login(user_id, access_token, refresh_token, scopes) \n                VALUES (?1, ?2, ?3, ?4)\n                ON CONFLICT(user_id) DO UPDATE\n                SET access_token = ?2, refresh_token = ?3, scopes = ?4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "399030bd86e8dcd1c7c10a612e1d4cb1656e59e65164e492c0055df610148906"
+}
