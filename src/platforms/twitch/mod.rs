@@ -41,7 +41,7 @@ pub struct Twitch {
     config: Config,
     csrf_tokens: Arc<Mutex<HashMap<CsrfToken, UserTokenBuilder>>>,
     channel_ids: Vec<String>,
-    recently_sent_messages: Arc<Mutex<HashSet<MsgId>>>,
+    recently_sent_messages: Arc<tokio::sync::Mutex<HashSet<MsgId>>>,
 }
 
 impl ChatPlatform for Twitch {
@@ -117,7 +117,7 @@ impl Twitch {
         if self
             .recently_sent_messages
             .lock()
-            .unwrap()
+            .await
             .remove(&msg.message_id)
         {
             return Ok(());
@@ -140,6 +140,8 @@ impl Twitch {
     }
 
     async fn send_msg(&self, outgoing_msg: OutgoingMessage) -> anyhow::Result<()> {
+        let mut recently_sent = self.recently_sent_messages.lock().await;
+
         let channel_id = outgoing_msg
             .target_channel_id
             .context("Cannot send without a channel")?;
@@ -162,7 +164,6 @@ impl Twitch {
                     error!("Message did not get sent: {:?}", response.data.drop_reason);
                 }
                 if let Some(msg_id) = response.data.message_id {
-                    let mut recently_sent = self.recently_sent_messages.lock().unwrap();
                     recently_sent.insert(msg_id);
                 }
             }
