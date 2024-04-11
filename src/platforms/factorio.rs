@@ -172,13 +172,19 @@ fn process_log(new_contents: &str, incoming_tx: &mut mpsc::Sender<IncomingMessag
                                 // surface can be Phoebe, nauvis, Nauvis Orbit, "detached nauvis" ...
 
                                 // for some reason nauvis is lowercase, this fixes that
+                                let mut isdetached = false;
+
+                                if surface.starts_with("detached") {
+                                    surface = surface.split_once(' ').unwrap().1;
+                                    isdetached = true;
+                                }
+
                                 if surface == "nauvis" {
                                     surface = "Nauvis";
                                 }
 
-                                if surface.starts_with("detached") {
-                                    let viewedsurface = surface.split_once(' ').unwrap().1;
-                                    format!("{name} is looking at {viewedsurface}")
+                                if isdetached {
+                                    format!("{name} is looking at {surface}")
                                 } else {
                                     format!("{name} is on {surface}")
                                 }
