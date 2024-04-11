@@ -166,6 +166,16 @@ fn process_log(new_contents: &str, incoming_tx: &mut mpsc::Sender<IncomingMessag
                     }
                 },
                 "PLAYERLIST" => {
+                    if contents.is_empty() {
+                        let msg = IncomingMessage {
+                            channel_id: None,
+                            user_id: None,
+                            user_name: None,
+                            contents: "No players online".to_owned(),
+                            user_color: None,
+                        };
+                        return incoming_tx.blocking_send(msg).unwrap();
+                    }
                     let list = contents.split(';')
                             .map(|player| {
                                 let (name, mut surface) = player.split_once(' ').unwrap();
