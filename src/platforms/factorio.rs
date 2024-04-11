@@ -53,9 +53,8 @@ impl ChatPlatform for Factorio {
         loop {
             select! {
                 Some(msg) = outgoing_message_rx.recv() => {
-                    let cmd;
-                    if msg.source_msg.contents.starts_with("!players ") || msg.source_msg.contents == "!players" {
-                        cmd = String::from("/bridge-player-list");
+                    let cmd = if msg.source_msg.contents.starts_with("!players ") || msg.source_msg.contents == "!players" {
+                        String::from("/bridge-player-list")
                     } else {
                         let user_text = match msg.source_msg.user_name {
                             Some(name) => match msg.source_msg.user_color {
@@ -67,8 +66,8 @@ impl ChatPlatform for Factorio {
                             None => msg.content.to_string()
                         };
 
-                        cmd = format!("/puppet [{}] {user_text}", msg.source_platform_name);
-                    }
+                        format!("/puppet [{}] {user_text}", msg.source_platform_name)
+                    };
 
                     if let Err(err) = rcon_client.cmd(&cmd).await {
                         error!("Could not send message to server: {err}");
