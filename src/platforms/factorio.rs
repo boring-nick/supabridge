@@ -53,17 +53,22 @@ impl ChatPlatform for Factorio {
         loop {
             select! {
                 Some(msg) = outgoing_message_rx.recv() => {
-                    let user_text = match msg.source_msg.user_name {
-                        Some(name) => match msg.source_msg.user_color {
-                            Some(color) => {
-                                format!("[color=#{color}]{name}:[/color] {}", msg.source_msg.contents)
+                    let cmd;
+                    if msg.source_msg.contents.starts_with("/players ") || msg.source_msg.contents == "/players" {
+                        cmd = String::from("/bridge-player-list");
+                    } else {
+                        let user_text = match msg.source_msg.user_name {
+                            Some(name) => match msg.source_msg.user_color {
+                                Some(color) => {
+                                    format!("[color=#{color}]{name}:[/color] {}", msg.source_msg.contents)
+                                }
+                                None => format!("{name}: {}", msg.source_msg.contents)
                             }
-                            None => format!("{name}: {}", msg.source_msg.contents)
-                        }
-                        None => msg.content.to_string()
-                    };
+                            None => msg.content.to_string()
+                        };
 
-                    let cmd = format!("/puppet [{}] {user_text}", msg.source_platform_name);
+                        cmd = format!("/puppet [{}] {user_text}", msg.source_platform_name);
+                    }
 
                     if let Err(err) = rcon_client.cmd(&cmd).await {
                         error!("Could not send message to server: {err}");
@@ -160,6 +165,30 @@ fn process_log(new_contents: &str, incoming_tx: &mut mpsc::Sender<IncomingMessag
                         }
                         None => error!("Could not process line '{line}', expected a split in chat message contents"),
                     }
+                },
+                "PLAYERLIST" => {
+                    let txt = contents.split(';')
+                            .map(|player| {
+                                let (name, mut surface) = player.split_once(' ').unwrap();
+                                // surface can be Phoebe, nauvis, Nauvis Orbit, ...
+
+                                // for some reason nauvis is lowercase, this fixes that
+                                if surface == "nauvis" {
+                                    surface = "Nauvis";
+                                }
+
+                                format!("{name} is on {surface}")
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                    let msg = IncomingMessage {
+                        channel_id: None,
+                        user_id: None,
+                        user_name: None,
+                        contents: txt,
+                        user_color: None,
+                    };
+                    incoming_tx.blocking_send(msg).unwrap();
                 },
                 _ => {
                     let msg = IncomingMessage {
