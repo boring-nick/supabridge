@@ -54,7 +54,7 @@ impl ChatPlatform for Factorio {
             select! {
                 Some(msg) = outgoing_message_rx.recv() => {
                     let cmd;
-                    if msg.source_msg.contents.starts_with("/players ") || msg.source_msg.contents == "/players" {
+                    if msg.source_msg.contents.starts_with("!players ") || msg.source_msg.contents == "!players" {
                         cmd = String::from("/bridge-player-list");
                     } else {
                         let user_text = match msg.source_msg.user_name {
