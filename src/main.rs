@@ -1,3 +1,4 @@
+#![warn(clippy::all)]
 mod builder;
 mod config;
 mod platforms;
