@@ -170,14 +170,19 @@ fn process_log(new_contents: &str, incoming_tx: &mut mpsc::Sender<IncomingMessag
                     let txt = contents.split(';')
                             .map(|player| {
                                 let (name, mut surface) = player.split_once(' ').unwrap();
-                                // surface can be Phoebe, nauvis, Nauvis Orbit, ...
+                                // surface can be Phoebe, nauvis, Nauvis Orbit, "detached nauvis" ...
 
                                 // for some reason nauvis is lowercase, this fixes that
                                 if surface == "nauvis" {
                                     surface = "Nauvis";
                                 }
 
-                                format!("{name} is on {surface}")
+                                if surface.starts_with("detached") {
+                                    let viewedsurface = surface.split_once(' ').unwrap().1;
+                                    format!("{name} is looking at {viewedsurface}")
+                                } else {
+                                    format!("{name} is on {surface}")
+                                }
                             })
                             .collect::<Vec<_>>()
                             .join(", ");
