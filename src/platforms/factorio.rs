@@ -167,7 +167,7 @@ fn process_log(new_contents: &str, incoming_tx: &mut mpsc::Sender<IncomingMessag
                     }
                 },
                 "PLAYERLIST" => {
-                    let txt = contents.split(';')
+                    let list = contents.split(';')
                             .map(|player| {
                                 let (name, mut surface) = player.split_once(' ').unwrap();
                                 // surface can be Phoebe, nauvis, Nauvis Orbit, "detached nauvis" ...
@@ -186,6 +186,7 @@ fn process_log(new_contents: &str, incoming_tx: &mut mpsc::Sender<IncomingMessag
                             })
                             .collect::<Vec<_>>()
                             .join(", ");
+                    let txt = format!("Online players: {list}");
                     let msg = IncomingMessage {
                         channel_id: None,
                         user_id: None,
