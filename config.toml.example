@@ -1,0 +1,21 @@
+[general]
+log_level = "info"
+base_url = "https://bridge.example.com"
+
+[message]
+platform_aliases = { twitch = "T", factorio = "⚙️" }
+
+[platforms.twitch]
+client_id = "clientidhere"
+client_secret = "clientsecrethere"
+username = "bridgebot"
+eventsub_secret = "anyrandomeventsubstringhere"
+
+[platforms.factorio]
+rcon_address = "localhost:14434"
+rcon_password = "factorio-rcon-password"
+bridge_output_log_path = "/path/to/factorio/server/script-output/bridge-output.log"
+
+[[bridge]]
+channels = ["twitch:12345678", "factorio"]
+
