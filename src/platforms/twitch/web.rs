@@ -7,7 +7,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use serde::Deserialize;
-use std::{fmt, str::FromStr, sync::Arc};
+use std::{fmt, sync::Arc};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 use twitch_api::eventsub;
@@ -19,32 +19,21 @@ pub async fn eventsub_callback(
     Extension(message_tx): Extension<mpsc::Sender<IncomingMessage>>,
     request: http::Request<axum::body::Body>,
 ) -> Result<String, (StatusCode, String)> {
-    // TODO: get rid of this abomination once twitch_api is updated to the new http version
     let (parts, body) = request.into_parts();
     let body = body
         .collect()
         .await
         .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?
         .to_bytes();
-
-    let mut builder = http_old::Request::builder();
-    for (header, value) in parts.headers {
-        if let Some(name) = header {
-            builder.headers_mut().unwrap().insert(
-                http_old::header::HeaderName::from_str(name.as_str()).unwrap(),
-                http_old::HeaderValue::from_bytes(value.as_bytes()).unwrap(),
-            );
-        }
-    }
-    let request_old = builder.body(body).unwrap();
+    let request = http::Request::from_parts(parts, body);
 
     let valid =
-        eventsub::Event::verify_payload(&request_old, platform.config.eventsub_secret.as_bytes());
+        eventsub::Event::verify_payload(&request, platform.config.eventsub_secret.as_bytes());
     if !valid {
         return Err((StatusCode::FORBIDDEN, "Invalid signature".to_owned()));
     }
 
-    match eventsub::Event::parse_http(&request_old) {
+    match eventsub::Event::parse_http(&request) {
         Ok(event) => match event {
             eventsub::Event::ChannelChatMessageV1(payload) => match payload.message {
                 eventsub::Message::Notification(notification) => {
